@@ -9,6 +9,32 @@ API_URL = "http://localhost:8000"
 st.set_page_config(page_title="Pick-Up Hoops", page_icon="🏀", layout="wide")
 st.title("🏀 Pick-Up Hoops Dashboard")
 
+st.subheader("League Overview")
+
+try:
+    courts_response = requests.get(f"{API_URL}/courts/")
+    players_response = requests.get(f"{API_URL}/players/")
+    games_response = requests.get(f"{API_URL}/games/")
+
+    courts_count = len(courts_response.json()) if courts_response.status_code == 200 else 0
+    players_count = len(players_response.json()) if players_response.status_code == 200 else 0
+    games_count = len(games_response.json()) if games_response.status_code == 200 else 0
+except requests.RequestException:
+    courts_count = 0
+    players_count = 0
+    games_count = 0
+
+summary_col_1, summary_col_2, summary_col_3 = st.columns(3)
+
+with summary_col_1:
+    st.metric("Total Courts", courts_count)
+
+with summary_col_2:
+    st.metric("Registered Players", players_count)
+
+with summary_col_3:
+    st.metric("Scheduled Games", games_count)
+
 # Create navigation tabs
 tab_courts, tab_players, tab_games = st.tabs(["Courts 🏟️", "Players ⛹️‍♂️", "Games 📅"])
 
