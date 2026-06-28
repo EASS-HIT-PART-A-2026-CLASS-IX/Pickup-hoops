@@ -56,7 +56,7 @@ After running `docker compose up`, confirm the stack is healthy by checking each
 
 ## Worker Trace Excerpt
 
-Paste a real worker log excerpt here before submission:
+an example for a real worker log excerpt here before submission:
 
 ```text
 worker-1  | Processed 0 game(s).
