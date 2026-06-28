@@ -4,8 +4,9 @@ from datetime import datetime, timedelta
 
 from sqlmodel import Session, select
 
-from database import create_db_and_tables, engine
-from models import Court, Game, GameStatus, Player, SkillLevel
+from api.database import create_db_and_tables, engine
+from api.auth import hash_password
+from api.models import Court, Game, GameStatus, Player, SkillLevel, User
 
 
 def seed_database() -> None:
@@ -13,6 +14,23 @@ def seed_database() -> None:
     create_db_and_tables()
 
     with Session(engine) as session:
+        existing_user = session.exec(select(User)).first()
+        if existing_user is None:
+            users = [
+                User(
+                    username="admin",
+                    hashed_password=hash_password("adminpassword"),
+                    role="admin",
+                ),
+                User(
+                    username="player1",
+                    hashed_password=hash_password("playerpassword"),
+                    role="user",
+                ),
+            ]
+            session.add_all(users)
+            session.commit()
+
         existing_courts = session.exec(select(Court)).first()
         if existing_courts is not None:
             print("Database already contains sample data. No new records were created.")
@@ -76,7 +94,7 @@ def seed_database() -> None:
 
         session.commit()
 
-    print("Successfully created 3 courts, 4 players, and 2 games in the database.")
+    print("Successfully created sample users, 3 courts, 4 players, and 2 games in the database.")
 
 
 if __name__ == "__main__":

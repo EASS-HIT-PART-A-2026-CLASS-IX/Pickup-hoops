@@ -12,7 +12,7 @@ engine = create_engine(
 
 def create_db_and_tables() -> None:
     # Ensure model classes are imported so metadata includes all tables.
-    import models  # noqa: F401
+    import api.models as models  # noqa: F401
 
     SQLModel.metadata.create_all(engine)
 

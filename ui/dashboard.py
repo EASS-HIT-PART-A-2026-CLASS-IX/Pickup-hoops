@@ -1,39 +1,65 @@
 import streamlit as st
 import requests
+import csv
+import io
+import os
 from datetime import datetime
 
 # API Configuration
-API_URL = "http://localhost:8000"
+API_URL = os.getenv("API_URL", "http://localhost:8000")
 
 # Page Configuration
 st.set_page_config(page_title="Pick-Up Hoops", page_icon="🏀", layout="wide")
 st.title("🏀 Pick-Up Hoops Dashboard")
 
-st.subheader("League Overview")
+if "token" not in st.session_state:
+    st.session_state["token"] = None
 
-try:
-    courts_response = requests.get(f"{API_URL}/courts/")
-    players_response = requests.get(f"{API_URL}/players/")
-    games_response = requests.get(f"{API_URL}/games/")
 
-    courts_count = len(courts_response.json()) if courts_response.status_code == 200 else 0
-    players_count = len(players_response.json()) if players_response.status_code == 200 else 0
-    games_count = len(games_response.json()) if games_response.status_code == 200 else 0
-except requests.RequestException:
-    courts_count = 0
-    players_count = 0
-    games_count = 0
+def get_auth_headers():
+    token = st.session_state.get("token")
+    if not token:
+        return {}
+    return {"Authorization": f"Bearer {token}"}
 
-summary_col_1, summary_col_2, summary_col_3 = st.columns(3)
 
-with summary_col_1:
-    st.metric("Total Courts", courts_count)
+with st.sidebar:
+    st.header("Account")
 
-with summary_col_2:
-    st.metric("Registered Players", players_count)
+    if st.session_state.get("token"):
+        st.success("You are signed in.")
+        if st.button("Logout"):
+            st.session_state.pop("token", None)
+            st.session_state.pop("username", None)
+            st.rerun()
+    else:
+        with st.form("sidebar_login_form"):
+            login_username = st.text_input("Username")
+            login_password = st.text_input("Password", type="password")
+            submit_login = st.form_submit_button("Login")
 
-with summary_col_3:
-    st.metric("Scheduled Games", games_count)
+            if submit_login:
+                if not login_username.strip() or not login_password:
+                    st.error("Please enter both username and password.")
+                else:
+                    try:
+                        response = requests.post(
+                            f"{API_URL}/token",
+                            data={"username": login_username, "password": login_password},
+                            headers={"Content-Type": "application/x-www-form-urlencoded"},
+                        )
+                        if response.status_code == 200:
+                            token_data = response.json()
+                            st.session_state["token"] = token_data["access_token"]
+                            st.session_state["username"] = login_username
+                            st.success("Login successful.")
+                            st.rerun()
+                        elif response.status_code == 401:
+                            st.error("Invalid username or password.")
+                        else:
+                            st.error(f"Login failed: {response.text}")
+                    except requests.RequestException as exc:
+                        st.error(f"Login request failed: {exc}")
 
 # Create navigation tabs
 tab_courts, tab_players, tab_games = st.tabs(["Courts 🏟️", "Players ⛹️‍♂️", "Games 📅"])
@@ -99,6 +125,23 @@ if not st.session_state.get("data_loaded", False):
 
 for data_error in st.session_state.get("data_errors", []):
     st.error(data_error)
+
+
+st.subheader("League Overview")
+courts_count = len(st.session_state.get("courts_data", []))
+players_count = len(st.session_state.get("players_data", []))
+games_count = len(st.session_state.get("games_data", []))
+
+summary_col_1, summary_col_2, summary_col_3 = st.columns(3)
+
+with summary_col_1:
+    st.metric("Total Courts", courts_count)
+
+with summary_col_2:
+    st.metric("Registered Players", players_count)
+
+with summary_col_3:
+    st.metric("Scheduled Games", games_count)
 
 
 courts_data = st.session_state.get("courts_data", [])
@@ -219,6 +262,8 @@ with tab_courts:
     with st.expander("🗑️ Delete Court", expanded=False):
         if not courts_data:
             st.warning("No courts available to delete.")
+        elif not st.session_state.get("token"):
+            st.warning("Please log in as an admin first to delete courts.")
         else:
             court_options = {f"{court['name']} - {court['city']} (ID {court['id']})": court["id"] for court in courts_data}
             with st.form("form_delete_court"):
@@ -236,10 +281,17 @@ with tab_courts:
                     else:
                         try:
                             court_id = court_options[selected_court_label]
-                            res = requests.delete(f"{API_URL}/courts/{court_id}")
+                            res = requests.delete(
+                                f"{API_URL}/courts/{court_id}",
+                                headers=get_auth_headers(),
+                            )
                             if res.status_code == 200:
                                 st.success("Court deleted successfully!")
                                 rerun_with_refresh()
+                            elif res.status_code == 401:
+                                st.warning("Your session is not authenticated. Please log in again.")
+                            elif res.status_code == 403:
+                                st.error("Admin privileges are required to delete courts.")
                             else:
                                 st.error(f"Delete failed: {res.text}")
                         except requests.RequestException as exc:
@@ -467,6 +519,8 @@ with tab_games:
     with st.expander("🗑️ Delete Game", expanded=False):
         if not games_data:
             st.warning("No games available to delete.")
+        elif not st.session_state.get("token"):
+            st.warning("Please log in as an admin first to delete games.")
         else:
             game_options = {
                 f"Game ID {game['id']} - {game['scheduled_time'][:10]}": game['id']
@@ -487,10 +541,17 @@ with tab_games:
                     else:
                         try:
                             game_id = game_options[selected_game]
-                            res = requests.delete(f"{API_URL}/games/{game_id}")
+                            res = requests.delete(
+                                f"{API_URL}/games/{game_id}",
+                                headers=get_auth_headers(),
+                            )
                             if res.status_code == 200:
                                 st.success("Game deleted successfully!")
                                 rerun_with_refresh()
+                            elif res.status_code == 401:
+                                st.warning("Your session is not authenticated. Please log in again.")
+                            elif res.status_code == 403:
+                                st.error("Admin privileges are required to delete games.")
                             else:
                                 st.error(f"Delete failed: {res.text}")
                         except requests.RequestException as exc:
@@ -638,6 +699,18 @@ with tab_games:
 
         if display_games:
             st.dataframe(display_games, use_container_width=True)
+
+            csv_buffer = io.StringIO()
+            csv_writer = csv.DictWriter(csv_buffer, fieldnames=display_games[0].keys())
+            csv_writer.writeheader()
+            csv_writer.writerows(display_games)
+
+            st.download_button(
+                label="📥 Export Games to CSV",
+                data=csv_buffer.getvalue(),
+                file_name="games_schedule.csv",
+                mime="text/csv",
+            )
         else:
             st.info("No upcoming open games at the moment.")
     else:

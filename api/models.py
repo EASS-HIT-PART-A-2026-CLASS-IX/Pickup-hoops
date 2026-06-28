@@ -17,6 +17,14 @@ class GameStatus(str, Enum):
     COMPLETED = "completed"
 
 
+class User(SQLModel, table=True):
+    """Represents an authenticated user."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    username: str = Field(index=True, unique=True)
+    hashed_password: str
+    role: str = Field(default="user")
+
+
 class GamePlayer(SQLModel, table=True):
     """Link table for many-to-many relationship between Game and Player."""
     game_id: int = Field(foreign_key="game.id", primary_key=True)

@@ -6,9 +6,20 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi[standard]>=0.104.0",
+    "anyio[trio]>=4.10.0",
+    "httpx>=0.28.1",
+    "passlib[bcrypt]>=1.7.4",
+    "pyjwt>=2.13.0",
     "pytest>=9.0.2",
+    "pytest-asyncio>=1.4.0",
+    "python-multipart>=0.0.22",
+    "redis>=8.0.1",
     "requests>=2.33.1",
     "sqlmodel>=0.0.14",
     "streamlit>=1.56.0",
+    "tenacity>=9.1.4",
     "websockets<14",
 ]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

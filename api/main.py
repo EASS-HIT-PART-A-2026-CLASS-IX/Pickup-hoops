@@ -1,11 +1,13 @@
 from contextlib import asynccontextmanager
 from typing import List
 from fastapi import FastAPI, HTTPException, Depends
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import Session, select
 from sqlalchemy.orm import selectinload
 
-from database import create_db_and_tables, get_session
-from models import (
+from api.auth import create_access_token, require_admin, verify_password
+from api.database import create_db_and_tables, get_session
+from api.models import (
     Court,
     CourtCreate,
     CourtUpdate,
@@ -16,6 +18,7 @@ from models import (
     GameCreate,
     GameRead,
     GameUpdate,
+    User,
 )
 
 
@@ -28,6 +31,19 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Pick-Up Hoops API", lifespan=lifespan)
+
+
+@app.post("/token")
+def login_for_access_token(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    session: Session = Depends(get_session),
+):
+    user = session.exec(select(User).where(User.username == form_data.username)).first()
+    if not user or not verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Incorrect username or password")
+
+    access_token = create_access_token({"sub": user.username, "role": user.role})
+    return {"access_token": access_token, "token_type": "bearer"}
 
 
 # ============== COURT CRUD ROUTES ==============
@@ -81,7 +97,11 @@ def update_court(
 
 
 @app.delete("/courts/{court_id}")
-def delete_court(court_id: int, session: Session = Depends(get_session)):
+def delete_court(
+    court_id: int,
+    session: Session = Depends(get_session),
+    _: User = Depends(require_admin),
+):
     """Delete a court."""
     db_court = session.get(Court, court_id)
     if not db_court:
@@ -146,7 +166,11 @@ def update_player(
 
 
 @app.delete("/players/{player_id}")
-def delete_player(player_id: int, session: Session = Depends(get_session)):
+def delete_player(
+    player_id: int,
+    session: Session = Depends(get_session),
+    _: User = Depends(require_admin),
+):
     """Delete a player."""
     db_player = session.get(Player, player_id)
     if not db_player:
@@ -216,7 +240,11 @@ def update_game(
 
 
 @app.delete("/games/{game_id}")
-def delete_game(game_id: int, session: Session = Depends(get_session)):
+def delete_game(
+    game_id: int,
+    session: Session = Depends(get_session),
+    _: User = Depends(require_admin),
+):
     """Delete a game."""
     db_game = session.get(Game, game_id)
     if not db_game:
